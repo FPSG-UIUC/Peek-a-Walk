@@ -1,0 +1,16 @@
+obj/
+results/
+*.txt
+*.swp
+build/
+bin/
+*.cmd
+*.ko
+*.out
+*.order
+*.mod
+*.mod.cmd
+*.o
+*.symvers
+*.mod.c
+*.bin

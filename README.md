@@ -14,7 +14,8 @@ Finally, we reverse engineer the semantics of Intel’s data-memory dependent pr
 Linux Disto: `Ubuntu 22.04.4 LTS`\
 Kernel Version: `6.6.0-rc4`\
 Processor: `13th Gen Intel Core i9-13900K`\
-Make Version: `GNU Make 4.3`
+Make Version: `GNU Make 4.3`\
+Clang Version: `14.0.0-1ubuntu1.1` 
 
 # Source Code Overview 
 * `pwsc_library`: this contains the PWSC library files. 

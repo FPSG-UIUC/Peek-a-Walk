@@ -42,7 +42,7 @@ typedef union {
 	uint8_t vpn3_set:6;
 	uint8_t vpn4_co:3;
 	uint8_t vpn4_set:6;
-	uint16_t top:16; // TODO rename? 
+	uint16_t top:16; // TODO rename to sign bits 
   } __attribute((packed));
 } __attribute((packed)) virtual_address_t;
 

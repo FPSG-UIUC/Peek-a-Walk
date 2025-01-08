@@ -21,20 +21,30 @@ Clang Version: `14.0.0-1ubuntu1.1`
 * `pwsc_library`: this contains the PWSC library files. 
     * `src`: source code for the library
         * `pwsc.c`: this contains the bulk of the PWSC logic 
-        * The other files contain helper / utility functions for `pwsc.c` 
+        * `leak.c`: this contains the memory order oracle and the main functions we use in our paper to leak secrets
+        * The other files contain helper / utility functions for `pwsc.c` and `leak.c` 
     * `include`: header files for the library
     * `build`: generate build files 
-* `src`: this contains the source code that uses the PWSC library files. Right now we only have a simple test called in `arch.c` 
+* `src`: this contains the source code that uses the PWSC library files. 
+    * `arch.c`: This contains a basic PWC order oracle test with an architectural transmitter
+    * `spectre_user.c`: In this test, PWSC uses a Spectre-V2 unmasked gadget to leak a string with the leak userspace pointer function
+    * `spectre_ascii.c`: In this test, PWSC uses a Spectre-V2 unmasked gadget to leak a string with the leak ASCII function
+    * Expecting two more tests to be slowly ported here (DDP and another Spectre-V2 one)
 
 Note: the more advanced PoCs mentioned in our paper are slowly being moved here, so keep a look out for them! 
 
 # Building 
-Just simple run `make`! 
+Just simply run `make`! 
 
 # Usage 
 Final runnables will be output in `bin/`. After building there should be two items: the PWSC library file and the simple test using that library.
 
-To run the simple test after building you can simple run `./bin/arch.out`. 
+## PWSC Library Tests
+* To run the simple test after building you can simply run `./bin/arch.out`. 
+* To test the leak userspace pointer function from `leak.c` simply run `./bin/spectre_user.out`. 
+* To test the leak ascii function from `leak.c` simply run `./bin/spectre_ascii.out`. 
+
+## TODO more advance PoCs (i.e. DDP and Spectre-V2)
 
 # TODOs for this repo 
 * The more advanced repos mentioned in our paper 

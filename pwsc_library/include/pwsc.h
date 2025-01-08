@@ -50,11 +50,12 @@ typedef union {
 
 struct pwsc_ans {
 	virtual_address_t va; 
-	uint64_t num_lines_found;
+	uint64_t num_lines_found; // TODO change this to num_vpns_found
 };
 
 /* Default init evict sizes */
 static uint64_t DEFAULT_EVICT_SIZES[MAX_PAGE_LEVELS] = {1920, 32, 2, 2};
+static uint64_t MEMORY_MAP_ORDER_ORACLE_EVICT_SIZES[MAX_PAGE_LEVELS] = {4096, 56, 24, 12};
 static const uint64_t 
 	pagetable_region_sizes[MAX_PAGE_LEVELS]
 	= 

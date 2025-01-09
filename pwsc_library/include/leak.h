@@ -6,22 +6,15 @@
 // TODO need to explain the concept of a noise filter 
 extern uint64_t noise_filter[ncache_lines];
 
-// TODO port the descriptions to match what the new format 
 
 /*
-    leak_pwsc_ptr - leaks a set of 8 byte values in addr
-    input: addr, noise filter 
-    output: guess_vaddr
-*/
-struct pwsc_ans leak_pwsc_ptr(uint64_t addr, uint64_t *init_noise_filter);
-
-
-/*
-    leak_addr_range -- leaks bytes in the address range 
-    inputs: start_leak, end_leak, page_walk_depth (TODO implement page walk depth feature + shift granularity (1, 2, 4, 8) + ASCII HINT)
-    output: a struct bit_map which has byte by byte of the addr range. Note the ends of the range may be imcomplete. NULL if something went wrong 
-
-    Assumption: start_leak > 0 
+ *  leak_addr_range --  leaks bytes in the address range [start_leak, end_leak] at byte granularity gran 
+ *                      with the inputted initial noise filter config. You can pass an ASCII flag 
+ *                      to achieve accuracy and performance improvements if you know the secret is an
+ *                      is an ASCII string. 
+ *  Inputs: start_leak, end_leak, stride grandularity, init noise filter config, and the ASCII hint
+ *  Output: The leaked bits. 
+ *  Assumption: start_leak > 0 (or else infinite loop due to integer overflow)
 */
 struct bit_map* leak_addr_range(uint64_t start_leak, uint64_t end_leak, uint64_t gran, uint64_t *init_noise_filter, uint64_t ascii_flag);
 
@@ -41,7 +34,7 @@ void extract_string(struct bit_map *map);
 
 
 /*
-    Returns the bit accuracy of the guess and what is correct
-    assumptions: bit_map->size = sizeof(correct)
+ * Returns the bit accuracy of the guess and what is correct
+ * Assumptions: bit_map->size = sizeof(correct)
 */
 double accuracy(struct bit_map *guess, char *correct);

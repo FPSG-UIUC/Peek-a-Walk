@@ -14,7 +14,6 @@
 #define pte_per_line 	(line_size / pte_size) 	// pte's per cache line 
 // #define trials 			128 					// number of trials 
 #define nrounds	 		10 						// measurement rounds 
-// TODO solver threshold 
 
 /* Trial number config macros */
 #define NUM_TRIALS_USUAL 128
@@ -60,8 +59,6 @@ static const uint64_t
 	pagetable_region_sizes[MAX_PAGE_LEVELS]
 	= 
 	{4 * KIB, 2 * MIB, 1 * GIB, 512 * GIB};  // page table memory region size s
-
-/* TODO denoising interface */
 
 /* Function Predeclarations */
 void profile_cache(

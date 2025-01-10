@@ -30,6 +30,8 @@ Clang Version: `14.0.0-1ubuntu1.1`
     * `spectre_user.c`: In this test, PWSC uses a Spectre-V2 unmasked gadget to leak a string with the leak userspace pointer function
     * `spectre_ascii.c`: In this test, PWSC uses a Spectre-V2 unmasked gadget to leak a string with the leak ASCII function
     * Expecting two more tests to be slowly ported here (DDP and another Spectre-V2 one)
+* `spectre_pocs`: houses the SpectreBHB PoCs refer [here](spectre_pocs/README.md) for more details. 
+* `tools`: houses tools used for our paper refer [here](tools/README.md) for more details. 
 
 Note: the more advanced PoCs mentioned in our paper are slowly being moved here, so keep a look out for them! 
 
@@ -37,20 +39,20 @@ Note: the more advanced PoCs mentioned in our paper are slowly being moved here,
 Just simply run `make`! 
 
 # Usage 
-Final runnables will be output in `bin/`. After building there should be two items: the PWSC library file and the simple test using that library.
 
 ## PWSC Library Tests
+Final PWSC library runnables will be output in `bin/`. After building there should be four items: the PWSC library file and the various test binaries which are as follows,
 * To run the simple test after building you can simply run `./bin/arch.out`. 
 * To test the leak userspace pointer function from `leak.c` simply run `./bin/spectre_user.out`. 
 * To test the leak ascii function from `leak.c` simply run `./bin/spectre_ascii.out`. 
 
-## TODO more advance PoCs (i.e. DDP and Spectre-V2)
+## Spectre PoCs
+Refer to the `spectre_pocs`'s `README.md` for more details [here](spectre_pocs/). 
 
-# TODOs for this repo 
-* The more advanced repos mentioned in our paper 
-    * Spectre-V2 PoCs 
-    * Intel DDP PoCs 
-* Intel DMP RE 
+## Tools
+Refer to the `tools`'s `README.md` for more details [here](tools/). 
+
+## TODO need to add the Intel DMP PoC and the Intel DMP reverse engineering code
 
 # Acknowledgements 
 I would like to acknowledge the Vusec group behind AnC (Gras et al.), this repo started from their open source code [here](https://github.com/vusec/revanc). I would also like to acknowledge the Vusec group behind SLAM (Hertogh et al.) and Inspectre (Wiebing et al.), the spectre code here is mainly based off their open source code [here](https://github.com/vusec/slam) and [here](https://github.com/vusec/inspectre-gadget). 

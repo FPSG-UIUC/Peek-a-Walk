@@ -166,8 +166,6 @@ struct pwsc_ans leak_userspace_ptr(uint64_t addr, uint64_t *init_noise_filter, u
     }
 
 return_ans:
-    // TODO move this to the actual place that uses this instead of applying it boardly --> i.e. to the dilithium code. 
-    if(ret.num_lines_found < 3) ret.va.va = 0; // zero it out 
 
     // If we don't find a full VPN (including the cache offset) remove additional information 
     // to avoid reporting incorrect bits. 

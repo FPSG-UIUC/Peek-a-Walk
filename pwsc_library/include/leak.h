@@ -6,9 +6,9 @@
 /*
  *  There might sometimes be random cache sets that always have systematic noise that we can't remove. 
  *  E.g. the secret address's PO will make a specific cache set seem touched by the page walk, but it 
- *  is not an important at all and will actually mess with our PWSC (it also isn't removed by our 
- *  differential measurement technique). To combat the noise filter is used to allow `leak.c` to preset
- *  it to mask out that bad cache set signal. 
+ *  is not important at all and will actually mess with our PWSC (it also isn't removed by our 
+ *  differential measurement technique). To combat this, the noise filter is used to allow `leak.c` 
+ *  to preset a noise mask to remove the bad cache set signal. 
  */
 extern uint64_t noise_filter[ncache_lines];
 

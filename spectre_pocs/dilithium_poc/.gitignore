@@ -1,0 +1,9 @@
+# Key materials files
+*.txt
+
+# python cache
+__pycache__/
+
+*.a
+attacker
+victim

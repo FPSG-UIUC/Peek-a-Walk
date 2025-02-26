@@ -55,4 +55,4 @@ Refer to the `tools`'s `README.md` for more details [here](tools/).
 ## TODO need to add the Intel DMP PoC and the Intel DMP reverse engineering code
 
 # Acknowledgements 
-I would like to acknowledge the Vusec group behind AnC (Gras et al.), this repo started from their open source code [here](https://github.com/vusec/revanc). I would also like to acknowledge the Vusec group behind SLAM (Hertogh et al.) and Inspectre (Wiebing et al.), the spectre code here is mainly based off their open source code [here](https://github.com/vusec/slam) and [here](https://github.com/vusec/inspectre-gadget). 
+I would like to acknowledge the VUSec group behind AnC (Gras et al.), this repo started from their open source code [here](https://github.com/vusec/revanc). I would also like to acknowledge the VUSec group behind SLAM (Hertogh et al.) and Inspectre (Wiebing et al.), the spectre code here is mainly based off their open source code [here](https://github.com/vusec/slam) and [here](https://github.com/vusec/inspectre-gadget). 

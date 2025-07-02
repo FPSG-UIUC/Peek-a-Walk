@@ -40,19 +40,32 @@ Just simply run `make`!
 
 # Usage 
 
-## PWSC Library Tests
+### PWSC Library Tests
 Final PWSC library runnables will be output in `bin/`. After building there should be four items: the PWSC library file and the various test binaries which are as follows,
 * To run the simple test after building you can simply run `./bin/arch.out`. 
 * To test the leak userspace pointer function from `leak.c` simply run `./bin/spectre_user.out`. 
 * To test the leak ascii function from `leak.c` simply run `./bin/spectre_ascii.out`. 
 
-## Spectre PoCs
+### Spectre PoCs
 Refer to the `spectre_pocs`'s `README.md` for more details [here](spectre_pocs/). 
 
-## Tools
+### Tools
 Refer to the `tools`'s `README.md` for more details [here](tools/). 
 
-## TODO need to add the Intel DMP PoC and the Intel DMP reverse engineering code
+### TODO need to add the Intel DMP PoC and the Intel DMP reverse engineering code
+
+# Paper BibTex
+
+If you use any of the Peek-a-Walk materials please cite our work: 
+
+```
+@INPROCEEDINGS {peek-a-walk-wang-2025,
+   author = { Wang, Alan and Chen, Boru and Wang, Yingchen and Fletcher, Christopher W. and Genkin, Daniel and Kohlbrenner, David and Paccagnella, Riccardo },
+   booktitle = { 2025 IEEE Symposium on Security and Privacy (SP) },
+   title = {{ Peek-a-Walk: Leaking Secrets via Page Walk Side Channels }},
+   year = {2025},
+}
+```
 
 # Acknowledgements 
 I would like to acknowledge the VUSec group behind AnC (Gras et al.), this repo started from their open source code [here](https://github.com/vusec/revanc). I would also like to acknowledge the VUSec group behind SLAM (Hertogh et al.) and Inspectre (Wiebing et al.), the spectre code here is mainly based off their open source code [here](https://github.com/vusec/slam) and [here](https://github.com/vusec/inspectre-gadget). 

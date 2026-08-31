@@ -14,6 +14,7 @@ bin/
 *.symvers
 *.mod.c
 *.bin
+*.csv
 spectre_pocs/main
 pwsc.a
 pwsc_spectre_bhi.a

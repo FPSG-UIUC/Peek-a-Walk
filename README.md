@@ -30,6 +30,7 @@ Clang Version: `14.0.0-1ubuntu1.1`
     * `spectre_user.c`: In this test, PWSC uses a Spectre-V2 unmasked gadget to leak a string with the leak userspace pointer function
     * `spectre_ascii.c`: In this test, PWSC uses a Spectre-V2 unmasked gadget to leak a string with the leak ASCII function
     * Expecting two more tests to be slowly ported here (DDP and another Spectre-V2 one)
+* `INTEL_DDP`: Contains most of the code used to reverse-engineer the Intel DDP (Section 5 of the paper). See the directory README for detailed usage and documentation.
 * `spectre_pocs`: houses the SpectreBHB PoCs refer [here](spectre_pocs/README.md) for more details. 
 * `tools`: houses tools used for our paper refer [here](tools/README.md) for more details. 
 

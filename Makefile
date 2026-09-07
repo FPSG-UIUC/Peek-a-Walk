@@ -7,9 +7,9 @@ PROGS=$(foreach s,$(SRCS),$(patsubst src/%.c,bin/%.out,$(s)))
 TESTS_SRC=$(wildcard tests/*.c)
 TESTS_PROGS=$(foreach s,$(TESTS_SRC),$(patsubst tests/%.c,tests_bin/%.out,$(s)))
 
-.PHONY: all clean pwsc_library spectre_pocs tools
+.PHONY: all clean pwsc_library spectre_pocs tools intel_ddp
 
-all: $(PROGS) $(TESTS_PROGS) spectre_pocs tools
+all: $(PROGS) $(TESTS_PROGS) spectre_pocs tools intel_ddp
 
 pwsc_library: 
 	make -C pwsc_library 
@@ -30,8 +30,12 @@ spectre_pocs: pwsc_library
 tools:
 	make -C tools
 
+intel_ddp:
+	make -C INTEL_DDP
+
 clean: 
 	make -C pwsc_library clean
 	make -C spectre_pocs clean
 	make -C tools clean
-	rm -rf bin/ 
+	make -C INTEL_DDP clean
+	rm -rf bin/
